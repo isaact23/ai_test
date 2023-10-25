@@ -14,6 +14,28 @@
       "console": "integratedTerminal",
       "justMyCode": true,
       "sudo": false
+    },
+    {
+      "name": "Cheese Chatbot",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceRoot}/fine_tuning/chatbot.py",
+      "python": "${workspaceFolder}/env/bin/python3",
+      "args": "",
+      "console": "integratedTerminal",
+      "justMyCode": true,
+      "sudo": false
+    },
+    {
+      "name": "Cheese Chatbot Fine-tuning",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceRoot}/fine_tuning/tuning.py",
+      "python": "${workspaceFolder}/env/bin/python3",
+      "args": "",
+      "console": "integratedTerminal",
+      "justMyCode": true,
+      "sudo": false
     }
   ]
 }

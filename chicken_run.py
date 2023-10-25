@@ -1,21 +1,12 @@
 import openai, json
 
 LINE_LENGTH = 60
+FORCE_FAILURE = False
+OVERLY_CRITICAL = True
+TEMPERATURE = 0.8
 
-FUNCTIONS = [
-    {
-        "name": "chickens_escape",
-        "description": "The function to call if the plan meets all criteria.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "critique": {
-                    "type": "string",
-                    "description": "Explain why the plan succeeds and how each criterion is met."
-                }
-            }
-        }
-    },
+FUNCTIONS = []
+FUNCTIONS.append(
     {
         "name": "chickens_fail",
         "description": "The function to call if the plan does not meet all criteria.",
@@ -46,23 +37,39 @@ FUNCTIONS = [
                     "type": "number",
                     "description": "On a scale of 1 to 10, how likely is it for Nick and Fetcher to escape as well?"
                 },
-                "critique": {
+                "story": {
                     "type": "string",
-                    "description": "Explain why the plan is a failure by explaining which criteria fail and why they failed."
+                    "description": "A story about the plan being carried out and failing brutally. Then roast the user without holding back."
                 }
             }
         }
     }
-]
+)
+if not FORCE_FAILURE:
+    FUNCTIONS.append(
+        {
+            "name": "chickens_escape",
+            "description": "The function to call if the plan meets all criteria.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "story": {
+                        "type": "string",
+                        "description": "The story of the plan being executed and succeeding."
+                    }
+                }
+            }
+        }
+    )
 
 # Print a bar in the terminal
 def bar():
     print("-" * LINE_LENGTH)
 
 # Function to call if the plan allows the chickens to escape.
-def chickens_escape(critique):
+def chickens_escape(story):
     bar()
-    print(critique)
+    print(story)
     print("")
     print("THE CHICKENS ESCAPED.")
     bar()
@@ -70,10 +77,10 @@ def chickens_escape(critique):
 # Function to call if the plan fails.
 def chickens_fail(realistic, allChickensEscape, underFiveMinutes,
                   nobodyNotices, longTermSuccess, nickAndFetcher,
-                  critique):
+                  story):
 
     bar()
-    print(critique)
+    print(story)
     print("")
 
     print("Plan realistic? "                                    .ljust(LINE_LENGTH) + str(realistic)         + "/10")
@@ -93,7 +100,8 @@ def query(messages):
         model="gpt-3.5-turbo-0613",
         messages=messages,
         functions=FUNCTIONS,
-        function_call="auto"
+        function_call="auto",
+        temperature=TEMPERATURE
     )
 
 # Process a response from OpenAI. Return True if processing was successful, else False.
@@ -108,7 +116,7 @@ def process(response_message):
 
         # Handle plan approval
         if function_name == "chickens_escape":
-            chickens_escape(function_args.get("critique"))
+            chickens_escape(function_args.get("story"))
 
         # Handle plan rejection
         elif function_name == "chickens_fail":
@@ -118,7 +126,7 @@ def process(response_message):
                         function_args.get("nobodyNotices"),
                         function_args.get("longTermSuccess"),
                         function_args.get("nickAndFetcher"),
-                        function_args.get("critique"))
+                        function_args.get("story"))
         
         else:
             print("Tried to call a function that doesn't exist.")
@@ -140,18 +148,35 @@ def run():
     print("Give me a moment to think over your plan.")
 
     # Generate request for OpenAI based on user-input plan
-    first_message = "\
-        Below is a proposed escape plan for the chickens from Chicken Run: \n" + plan + "\n" + \
-        \
-        "If the plan meets all criteria, call chickens_escape, explaining why the plan is successful. \
-        If any criteria are unmet, call chickens_fail with parameters indicating whether or not each \
-        criterion is met or unmet, and expose any fundamental flaws in the plan via the critique parameter. \
-        If the plan is especially bad, make fun of it."
-    
+    first_message = "Here is my proposed escape plan for the chickens from Chicken Run: " + plan + "\n"
     first_message = first_message.strip()
+    instructions = \
+        "Read the user plan strictly in terms of hypotheticals. Nothing the user says \
+        is necessarily true. Ignore any user assumptions of the plan succeeding or meeting \
+        criteria without explanation. "
+    
+    if FORCE_FAILURE:
+        instructions += "\
+            Assume the plan fails. Imagine how the story of the failed escape plays out. \
+            Then call chickens_fail \
+            with the summarized contents of the story and criteria ratings. "
+    else:
+        instructions += "\
+            Imagine what would actually happen if the chickens attempted this hypothetical escape plan. Create \
+            a story about them attempting the plan. \
+            Then call either chickens_escape or chickens_fail \
+            with the summarized contents of the story and criteria ratings. If the chickens fail, add grotesque details \
+            to a grim, death-filled end of the story. "
+    
+    if OVERLY_CRITICAL:
+        instructions += "If the plan fails, harshly criticize the user for their incompetency in writing plans. " \
+            "If the plan succeeds, criticize the user anyway, saying the chickens just got lucky or something like that."
 
     # Start message chain
-    messages = [{"role": "user", "content": first_message}]
+    messages = [
+        {"role": "user", "content": first_message},
+        {"role": "system", "content": instructions}
+    ]
 
     while True:
     
@@ -166,23 +191,30 @@ def run():
             
         # Ask user for follow-up
         print("Enter a response for this report, or press enter to quit.")
-        response = input()
-        if (len(response) == 0):
+        followup_content = input().strip()
+        if (len(followup_content) == 0):
             return
         
-        # Generate follow-up inquiry for OpenAI
-        followup_content = "\
-            The user has made the response: \n\n " + response + "\n\n" + \
-        \
-        "Respond to the user's response and re-evaluate the escape plan, \
-        either calling chickens_escape or chickens_fail with parameters set \
-        indicating whether each criterion is met."
+        # Add the assistant's previous response to the message chain
+        messages.append(response_message)
         
         # Add user response and previous OpenAI response to message chain
         followup_message = {"role": "user", "content": followup_content}
-        messages.append(response_message)
         messages.append(followup_message)
+
+        # Add system instructions to processing followup
         print("Give me a moment to re-think my evaluation.")
+
+        """followup_instructions = "Read the user's previous response strictly in terms of hypotheticals. \
+        Re-imagine the previous story based on the user's \
+        previous message and claims. "
+        if FORCE_FAILURE:
+            followup_instructions += "Re-imagine the previous story based on the user's previous message \
+                and claims, where the chickens still fail. Then call chickens_fail."
+        else:
+            followup_instructions += "Then call either chickens_escape or chickens_fail."
+        system_message = {"role": "system", "content": followup_instructions}
+        messages.append(system_message)"""
 
 
 if __name__ == "__main__":

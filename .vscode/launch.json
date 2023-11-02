@@ -16,10 +16,11 @@
       "sudo": false
     },
     {
-      "name": "Cheese Chatbot",
+      "name": "Hamilton",
       "type": "python",
       "request": "launch",
-      "program": "${workspaceRoot}/fine_tuning/chatbot.py",
+      "cwd": "${workspaceFolder}/hamilton",
+      "program": "${workspaceRoot}/hamilton/hamilton.py",
       "python": "${workspaceFolder}/env/bin/python3",
       "args": "",
       "console": "integratedTerminal",
@@ -27,10 +28,11 @@
       "sudo": false
     },
     {
-      "name": "Cheese Chatbot Fine-tuning",
+      "name": "Webdev",
       "type": "python",
       "request": "launch",
-      "program": "${workspaceRoot}/fine_tuning/tuning.py",
+      "cwd": "${workspaceFolder}",
+      "program": "${workspaceRoot}/webdev.py",
       "python": "${workspaceFolder}/env/bin/python3",
       "args": "",
       "console": "integratedTerminal",

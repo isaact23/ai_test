@@ -1,4 +1,7 @@
 import openai, json
+from pathlib import Path
+from openai import OpenAI
+import playsound
 
 LINE_LENGTH = 60
 FORCE_FAILURE = False
@@ -73,6 +76,7 @@ def chickens_escape(story):
     print("")
     print("THE CHICKENS ESCAPED.")
     bar()
+    text_to_speech(story)
 
 # Function to call if the plan fails.
 def chickens_fail(realistic, allChickensEscape, underFiveMinutes,
@@ -93,26 +97,41 @@ def chickens_fail(realistic, allChickensEscape, underFiveMinutes,
     print("")
     print("THE CHICKENS DIED.")
     bar()
+    text_to_speech(story)
 
 # Send a query to OpenAI with a message chain.
 def query(messages):
-    return openai.ChatCompletion.create(
-        model="gpt-3.5-turbo-0613",
+    return openai.chat.completions.create(
+        model="gpt-4",
         messages=messages,
         functions=FUNCTIONS,
         function_call="auto",
         temperature=TEMPERATURE
     )
 
+def text_to_speech(text):
+    client = OpenAI()
+
+    audio_path = Path(__file__).parent / "output.mp3"
+    response = client.audio.speech.create(
+    model="tts-1",
+    voice="echo",
+    input=text
+    )
+
+    response.stream_to_file(audio_path)
+    playsound.playsound(audio_path)
+
+
 # Process a response from OpenAI. Return True if processing was successful, else False.
 def process(response_message):
 
     # Determine if OpenAI wants to call a function
-    if response_message.get("function_call"):
+    if response_message.function_call != None:
 
         # Determine which function OpenAI wants to call
-        function_name = response_message["function_call"]["name"]
-        function_args = json.loads(response_message["function_call"]["arguments"])
+        function_name = response_message.function_call.name
+        function_args = json.loads(response_message.function_call.arguments)
 
         # Handle plan approval
         if function_name == "chickens_escape":
@@ -120,13 +139,13 @@ def process(response_message):
 
         # Handle plan rejection
         elif function_name == "chickens_fail":
-            chickens_fail(function_args.get("realistic"),
-                        function_args.get("allChickensEscape"),
-                        function_args.get("underFiveMinutes"),
-                        function_args.get("nobodyNotices"),
-                        function_args.get("longTermSuccess"),
-                        function_args.get("nickAndFetcher"),
-                        function_args.get("story"))
+            chickens_fail(function_args["realistic"],
+                        function_args["allChickensEscape"],
+                        function_args["underFiveMinutes"],
+                        function_args["nobodyNotices"],
+                        function_args["longTermSuccess"],
+                        function_args["nickAndFetcher"],
+                        function_args["story"])
         
         else:
             print("Tried to call a function that doesn't exist.")
@@ -184,7 +203,7 @@ def run():
         responses = query(messages)
 
         # Interpret and handle the response
-        response_message = responses["choices"][0]["message"]
+        response_message = responses.choices[0].message
         processed = process(response_message)
         if not processed:
             return
@@ -205,7 +224,7 @@ def run():
         # Add system instructions to processing followup
         print("Give me a moment to re-think my evaluation.")
 
-        """followup_instructions = "Read the user's previous response strictly in terms of hypotheticals. \
+        followup_instructions = "Read the user's previous response strictly in terms of hypotheticals. \
         Re-imagine the previous story based on the user's \
         previous message and claims. "
         if FORCE_FAILURE:
@@ -214,7 +233,7 @@ def run():
         else:
             followup_instructions += "Then call either chickens_escape or chickens_fail."
         system_message = {"role": "system", "content": followup_instructions}
-        messages.append(system_message)"""
+        messages.append(system_message)
 
 
 if __name__ == "__main__":
